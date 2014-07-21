@@ -24,10 +24,10 @@ CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
 ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH
 DAMAGE.
 """
-import re, sys, commands, getopt
+import re, sys, commands, getopt, os
 
 def usage():
-    print "usage: cmd [-C] word file0 [file1 ...]"
+    print "usage: %s [-C] word file0 [file1 ...]"%(os.path.basename(sys.argv[0]))
 
 if len(sys.argv) <= 2:
     usage()
