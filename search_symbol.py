@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 """
 Copyright (c) 2014, katonori All rights reserved.
 
