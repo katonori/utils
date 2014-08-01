@@ -46,7 +46,12 @@ for o, a in opts:
 
 word = argv[0]
 for lib in argv[1:]:
-    (rv, out) = commands.getstatusoutput("nm " + " ".join(nmOpt) + " " + lib)
+    cmd = "nm " + " ".join(nmOpt) + " " + lib
+    (rv, out) = commands.getstatusoutput(cmd)
+    if rv != 0:
+        print "ERROR while executing command: " + cmd
+        print out
+        sys.exit(1)
     objName = ""
     for l in out.split("\n"):
         m = re.match(r"^(\S+):", l)
