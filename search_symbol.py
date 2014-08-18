@@ -27,6 +27,8 @@ DAMAGE.
 """
 import re, sys, commands, getopt, os
 
+CXXFILT = "c++filt"
+
 def usage():
     print "usage: %s [-C] word file0 [file1 ...]"%(os.path.basename(sys.argv[0]))
 
@@ -34,20 +36,29 @@ if len(sys.argv) <= 2:
     usage()
     sys.exit(1)
 
-nmOpt = []
+g_isDemangle = 0
 
 try:
     opts, argv = getopt.getopt(sys.argv[1:], "C", [])
 except getopt.GetoptError:
     usage()
-    sys.exit(2)
+    sys.exit(1)
 for o, a in opts:
     if o == "-C":
-        nmOpt.append(o)
+        g_isDemangle = 1
+
+# check if c++filt exists
+if g_isDemangle != 0:
+    (rv, out) = commands.getstatusoutput("which " + CXXFILT)
+    if rv != 0:
+        print('ERRRO: %s not found. The option "-C" uses %s'%(CXXFILT, CXXFILT))
+        sys.exit(1)
 
 word = argv[0]
 for lib in argv[1:]:
-    cmd = "nm " + " ".join(nmOpt) + " " + lib
+    cmd = "nm " + lib
+    if g_isDemangle != 0:
+        cmd += " | " + CXXFILT
     (rv, out) = commands.getstatusoutput(cmd)
     if rv != 0:
         print "ERROR while executing command: " + cmd
