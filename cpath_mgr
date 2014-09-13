@@ -1,0 +1,135 @@
+#!/usr/bin/env python
+
+import json
+import sys
+import re
+import os
+import commands
+import getopt
+
+CXXCMD = "g++"
+CMD_TO_GET_INC_PATH = CXXCMD + " -E -x c++ - -v < /dev/null"
+CONFIG_FILE  = os.environ['HOME'] + "/.compile_commands.json"
+
+STAT_NORMAL = 0
+STAT_INCPATH = 1
+
+def printUsage():
+    print "usage: cmd [-a] filename"
+
+def getPathList(srcFile):
+    pathList = ["."]
+    (rv, out) = commands.getstatusoutput(CMD_TO_GET_INC_PATH)
+    assert rv == 0
+    stat = STAT_NORMAL
+    for l in out.split("\n"):
+        if stat == STAT_NORMAL:
+            if l.startswith("#include"):
+                stat = STAT_INCPATH
+        elif stat == STAT_INCPATH:
+            if l.startswith(" "):
+                pathList.append(l[1:])
+            elif l.startswith("End of"):
+                # end of loop
+                break
+        else:
+            assert False
+
+    jsonFile = CONFIG_FILE
+    try:
+        with open(jsonFile) as f:
+            jsonData = json.load(f)
+            for d in jsonData: # TODO: quit linear search
+                fileInDb = d["file"]
+                if fileInDb != srcFile:
+                    continue
+                dirname = d["directory"]
+                command = d["command"]
+                stat = STAT_NORMAL
+                for a in re.split("\s+", command):
+                    if stat == STAT_NORMAL:
+                        if a == "-I":
+                            stat = STAT_INCPATH
+                        elif a.startswith("-I"):
+                            pathList.append(a.replace("-I", ""))
+                    elif stat == STAT_INCPATH:
+                        pathList.append(a)
+                    else:
+                        assert False
+                break
+    except IOError as e:
+        None
+    except KeyError as e:
+        None
+    return pathList
+
+def printPathList(srcFile):
+    pl = getPathList(srcFile)
+    res = ""
+    for a in pl:
+        res += a + ","
+    sys.stdout.write(res)
+
+def mergeFile(inFile):
+    compileDataList = []
+    """
+    " load data already recorded
+    """
+    try:
+        f = open(CONFIG_FILE, "r")
+    except IOError as e:
+        None
+    else:
+        try:
+            compileDataList = json.load(f)
+        except ValueError as e:
+            None
+        f.close()
+    """
+    " write new data
+    """
+    try:
+        with open(inFile, "r") as fi:
+            try:
+                inData = json.load(fi)
+                for inD in inData:
+                    # check if already registered
+                    for d in compileDataList:
+                        if d["file"] == inD["file"] and d["directory"] == inD["directory"]:
+                            # update
+                            d["command"] = inD["command"]
+                            inD = None
+                            break
+                    if inD:
+                        compileDataList.append(inD)
+            except ValueError as e:
+                print "ERROR: " + inFile + ": " + str(e)
+            else:
+                with open(CONFIG_FILE, "w") as f:
+                    f.writelines(json.dumps(compileDataList, indent=4))
+    except IOError as e:
+        print e
+
+if __name__ == "__main__":
+    argLen = len(sys.argv)
+    mode = "get"
+    try:
+        opts, args = getopt.gnu_getopt(sys.argv[1:], "a:", [])
+    except getopt.GetoptError, err:
+        printUsage()
+        sys.exit(1)
+    inFile = ""
+    for o, a in opts:
+        if o in ("-a"):
+            inFile = a
+            mode = "add"
+        else:
+            assert False, "unhandled option"
+    if mode == "get":
+        if len(args) != 1:
+            printUsage()
+            sys.exit(1)
+        srcFile = os.path.abspath(args[0])
+        printPathList(srcFile)
+    else:
+        mergeFile(inFile)
