@@ -32,45 +32,47 @@ CXXFILT = "c++filt"
 def usage():
     print "usage: %s [-C] word file0 [file1 ...]"%(os.path.basename(sys.argv[0]))
 
-if len(sys.argv) <= 2:
-    usage()
-    sys.exit(1)
+def search_symbol(isDemangle):
+    # check if c++filt exists
+    if isDemangle != 0:
+        (rv, out) = commands.getstatusoutput("which " + CXXFILT)
+        if rv != 0:
+            print('ERRRO: %s not found. The option "-C" uses %s'%(CXXFILT, CXXFILT))
+            sys.exit(1)
 
-g_isDemangle = 0
-
-try:
-    opts, argv = getopt.getopt(sys.argv[1:], "C", [])
-except getopt.GetoptError:
-    usage()
-    sys.exit(1)
-for o, a in opts:
-    if o == "-C":
-        g_isDemangle = 1
-
-# check if c++filt exists
-if g_isDemangle != 0:
-    (rv, out) = commands.getstatusoutput("which " + CXXFILT)
-    if rv != 0:
-        print('ERRRO: %s not found. The option "-C" uses %s'%(CXXFILT, CXXFILT))
-        sys.exit(1)
-
-word = argv[0]
-for lib in argv[1:]:
-    cmd = "nm " + lib
-    if g_isDemangle != 0:
-        cmd += " | " + CXXFILT
-    (rv, out) = commands.getstatusoutput(cmd)
-    if rv != 0:
-        print "ERROR while executing command: " + cmd
-        print out
-        sys.exit(1)
-    objName = ""
-    for l in out.split("\n"):
-        m = re.match(r"^(\S+):", l)
-        if m:
-            objName = m.group(1)
-        else:
-            m = re.search(word, l)
+    word = argv[0]
+    for lib in argv[1:]:
+        cmd = "nm " + lib
+        if isDemangle != 0:
+            cmd += " | " + CXXFILT
+        (rv, out) = commands.getstatusoutput(cmd)
+        if rv != 0:
+            print "ERROR while executing command: " + cmd
+            print out
+        objName = ""
+        for l in out.split("\n"):
+            m = re.match(r"^(\S+):", l)
             if m:
-                print "%s: %s: "%(lib, objName),
-                print l
+                objName = m.group(1)
+            else:
+                m = re.search(word, l)
+                if m:
+                    print "%s: %s: "%(lib, objName),
+                    print l
+
+if __name__ == "__main__":
+    if len(sys.argv) <= 2:
+        usage()
+        sys.exit(1)
+
+    isDemangle = 0
+
+    try:
+        opts, argv = getopt.getopt(sys.argv[1:], "C", [])
+    except getopt.GetoptError:
+        usage()
+        sys.exit(1)
+    for o, a in opts:
+        if o == "-C":
+            isDemangle = 1
+    search_symbol(isDemangle)
