@@ -29,19 +29,8 @@ import re, sys, commands, getopt, os
 
 CXXFILT = "c++filt"
 
-def usage():
-    print "usage: %s [-C] word file0 [file1 ...]"%(os.path.basename(sys.argv[0]))
-
-def search_symbol(isDemangle):
-    # check if c++filt exists
-    if isDemangle != 0:
-        (rv, out) = commands.getstatusoutput("which " + CXXFILT)
-        if rv != 0:
-            print('ERRRO: %s not found. The option "-C" uses %s'%(CXXFILT, CXXFILT))
-            sys.exit(1)
-
-    word = argv[0]
-    for lib in argv[1:]:
+class CmdNm():
+    def Run(self, lib, word, isDemangle):
         cmd = "nm " + lib
         if isDemangle != 0:
             cmd += " | " + CXXFILT
@@ -60,19 +49,65 @@ def search_symbol(isDemangle):
                     print "%s: %s: "%(lib, objName),
                     print l
 
+class CmdReadElf():
+#    Num:    Value          Size Type    Bind   Vis      Ndx Name
+# 49: 0000000000000000     0 FUNC    GLOBAL DEFAULT  UND _ZN21WPXPropertyListVecto
+    def Run(self, lib, word, isDemangle):
+        cmd = "readelf -s -W " + lib
+        if isDemangle != 0:
+            cmd += " | " + CXXFILT
+        (rv, out) = commands.getstatusoutput(cmd)
+        if rv != 0:
+            print "ERROR while executing command: " + cmd
+            print out
+        objName = ""
+        for l in out.split("\n"):
+            row = re.split("\s+", l)
+            try:
+                row.remove("")
+            except ValueError as e:
+                pass
+            if len(row) == 8:
+                ndx = row[6]
+                name = row[7]
+                if ndx != "UND":
+                    m = re.search(word, name)
+                    if m:
+                        print "%s: %s: "%(lib, objName),
+                        print l
+def usage():
+    print "usage: %s [-nC] word file0 [file1 ...]"%(os.path.basename(sys.argv[0]))
+
+def search_symbol(isDemangle, cmdClass):
+    # check if c++filt exists
+    if isDemangle != 0:
+        (rv, out) = commands.getstatusoutput("which " + CXXFILT)
+        if rv != 0:
+            print('ERRRO: %s not found. The option "-C" uses %s'%(CXXFILT, CXXFILT))
+            sys.exit(1)
+
+    word = argv[0]
+    for lib in argv[1:]:
+        cmdClass.Run(lib, word, isDemangle)
+
 if __name__ == "__main__":
     if len(sys.argv) <= 2:
         usage()
         sys.exit(1)
 
     isDemangle = 0
+    cmdClass = None
 
     try:
-        opts, argv = getopt.getopt(sys.argv[1:], "C", [])
+        opts, argv = getopt.getopt(sys.argv[1:], "Cn", [])
     except getopt.GetoptError:
         usage()
         sys.exit(1)
     for o, a in opts:
         if o == "-C":
             isDemangle = 1
-    search_symbol(isDemangle)
+        elif o == "-n":
+            cmdClass = CmdNm()
+    if cmdClass == None:
+        cmdClass = CmdReadElf()
+    search_symbol(isDemangle, cmdClass)
